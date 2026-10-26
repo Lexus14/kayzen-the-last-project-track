@@ -1,0 +1,3 @@
+# No third-party dependencies.
+# The backend uses only the Python standard library, so it runs on
+# Termux and any machine with Python 3.10+ without pip installs.

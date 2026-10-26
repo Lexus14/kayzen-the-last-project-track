@@ -1,0 +1,12 @@
+body { font-family: system-ui, sans-serif; margin: 0; background: #0f172a; color: #e2e8f0; }
+main { max-width: 900px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 1.4rem; }
+section { background: #1e293b; border-radius: 12px; padding: 16px; margin: 16px 0; }
+input, button { padding: 10px; margin: 4px 4px 4px 0; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: #e2e8f0; }
+button { background: #2563eb; border: none; cursor: pointer; }
+button:hover { background: #1d4ed8; }
+table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+th, td { text-align: left; padding: 8px; border-bottom: 1px solid #334155; }
+#map { height: 420px; border-radius: 12px; }
+.hint { color: #94a3b8; }
+#device-token { word-break: break-all; }

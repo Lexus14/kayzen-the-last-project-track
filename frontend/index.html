@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kayzen-the-last-project-track</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main>
+  <h1>Kayzen-the-last-project-track</h1>
+  <p class="hint">Tracking real-time hanya untuk perangkat yang memberi izin. Lokasi tidak dilacak dari nomor HP/NIK.</p>
+
+  <section>
+    <h2>Akun</h2>
+    <input id="username" placeholder="Username" autocomplete="username">
+    <input id="password" type="password" placeholder="Password (min 8 karakter)" autocomplete="current-password">
+    <button id="btn-register">Daftar</button>
+    <button id="btn-login">Masuk</button>
+    <button id="btn-logout">Keluar</button>
+    <p id="auth-status"></p>
+  </section>
+
+  <section>
+    <h2>Perangkat</h2>
+    <input id="device-name" placeholder="Nama perangkat, mis. HP Kayzen">
+    <button id="btn-device">Daftarkan perangkat</button>
+    <p id="device-token"></p>
+    <button id="btn-refresh">Muat ulang perangkat</button>
+    <table>
+      <thead><tr><th>ID</th><th>Nama</th><th>Status</th><th>Lokasi terakhir</th><th>Waktu</th></tr></thead>
+      <tbody id="device-rows"></tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Peta</h2>
+    <div id="map"></div>
+  </section>
+
+  <section>
+    <h2>Kirim lokasi (uji)</h2>
+    <p class="hint">Gunakan token perangkat yang muncul sekali saat pendaftaran. Di penggunaan nyata, aplikasi perangkat mengirim ini otomatis setelah izin diberikan.</p>
+    <input id="loc-device" type="number" placeholder="ID perangkat">
+    <input id="loc-token" placeholder="Token perangkat">
+    <input id="loc-lat" type="number" step="any" placeholder="Latitude, mis. -3.123">
+    <input id="loc-lon" type="number" step="any" placeholder="Longitude, mis. 102.123">
+    <button id="btn-loc">Kirim lokasi</button>
+    <p id="loc-status"></p>
+  </section>
+</main>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
