@@ -55,6 +55,41 @@ curl -X POST http://127.0.0.1:8000/api/devices/1/locations \
    lengkap dengan jarak total, lalu bisa digeser atau diputar ulang
    titik demi titik.
 
+## Pengirim lokasi otomatis (Termux)
+
+Daripada isi form uji manual, perangkat bisa mengirim GPS-nya sendiri
+dengan izin pengguna, memakai Termux:API. Skripnya stdlib saja:
+`tools/send_location.py`. Token perangkat **tidak** ditulis di repository
+— token hanya disimpan di file lokal `~/.kltp-sender.env` di HP.
+
+```bash
+# 1. Di Termux, pasang aplikasi Termux:API + paketnya, beri izin lokasi,
+#    lalu uji GPS sekali:
+pkg install -y termux-api
+termux-location -p gps -r once
+
+# 2. Buat file konfigurasi lokal (jangan di-commit, jangan dibagikan):
+cp tools/sender.env.example ~/.kltp-sender.env
+nano ~/.kltp-sender.env
+#    isi SERVER_URL, DEVICE_ID, DEVICE_TOKEN, INTERVAL_SECONDS
+#    SERVER_URL bisa http://127.0.0.1:8000 atau URL Cloudflare Tunnel
+
+# 3. Jalankan di sesi Termux sendiri (server tetap jalan di sesi lain):
+python3 tools/send_location.py
+#    Sekali kirim saja (uji):  python3 tools/send_location.py --once
+#    Uji logika tanpa GPS:     python3 tools/send_location.py --once --mock
+```
+
+Perilaku penting:
+- Interval default 30 detik, minimal 5 detik (hemat baterai).
+- Kalau jaringan/server tidak terjangkau, titik disimpan ke antrean
+  offline (`~/.cache/kltp_sender_queue.jsonl`) dan dikirim ulang duluan
+  pada pengiriman berikutnya, sesuai urutan waktu.
+- Error token salah / perangkat tidak ada (401/404/400) tidak diantrekan,
+  karena mengulanginya tidak akan membantu — periksa token/perangkatnya.
+- Token tidak pernah dicetak ke log.
+- Tekan Ctrl+C untuk berhenti; antrean offline tetap tersimpan.
+
 ## API
 
 - `GET /api/health`
@@ -91,4 +126,5 @@ tests/test_api.py   Tes end-to-end terhadap server yang sedang berjalan
 
 - PostgreSQL sebagai opsi database selain SQLite.
 - WebSocket sebagai alternatif SSE bila dibutuhkan komunikasi dua arah.
-- Aplikasi / halaman kirim lokasi di perangkat, bukan hanya form uji.
+- Manajemen perangkat: hapus perangkat, cabut/putar token perangkat, dan
+  logout server-side yang benar-benar menghapus sesi.

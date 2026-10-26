@@ -1,6 +1,8 @@
 __pycache__/
 *.pyc
 .env
+.kltp-sender.env
+tools/sender-queue.jsonl
 data/*.db
 data/*.db-journal
 .venv/
