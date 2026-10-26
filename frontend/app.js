@@ -23,6 +23,24 @@ function authHeaders() {
 function showAuth() {
   document.getElementById("auth-status").textContent = token ? ("Masuk sebagai " + username) : "Belum masuk.";
 }
+function setBusy(btn, busy) {
+  if (busy) {
+    btn.dataset.label = btn.textContent;
+    btn.textContent = "Memproses…";
+    btn.disabled = true;
+  } else {
+    btn.textContent = btn.dataset.label || btn.textContent;
+    btn.disabled = false;
+  }
+}
+async function doLogin(u, p) {
+  const d = await api("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: u, password: p }) });
+  token = d.token; username = d.username;
+  localStorage.setItem("kltp_token", token); localStorage.setItem("kltp_user", username);
+  startStream();
+  await refresh();
+  return d;
+}
 async function api(path, opts) {
   const res = await fetch(path, opts);
   const data = await res.json().catch(() => ({}));
@@ -59,34 +77,49 @@ async function refresh() {
   });
   if (first) map.setView(first, 13);
 }
-document.getElementById("btn-register").onclick = async () => {
+document.getElementById("btn-register").onclick = async (ev) => {
+  const btn = ev.currentTarget;
+  setBusy(btn, true);
+  document.getElementById("auth-status").textContent = "Memproses pendaftaran…";
   try {
     const u = document.getElementById("username").value, p = document.getElementById("password").value;
     const d = await api("/api/auth/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: u, password: p }) });
-    document.getElementById("auth-status").textContent = "Terdaftar sebagai " + d.username + " (" + d.role + "). Sekarang masuk.";
-  } catch (e) { document.getElementById("auth-status").textContent = "Gagal: " + e.message; }
+    // Registering used to leave the user logged out, so a press looked
+    // like nothing happened. Log in immediately with the same credentials.
+    await doLogin(u, p);
+    document.getElementById("auth-status").textContent = "Terdaftar dan masuk sebagai " + d.username + " (" + d.role + ").";
+  } catch (e) {
+    if (e.message.includes("already exists")) {
+      document.getElementById("auth-status").textContent = "Username sudah dipakai — tekan Masuk dengan password yang sama.";
+    } else {
+      document.getElementById("auth-status").textContent = "Gagal: " + e.message;
+    }
+  } finally { setBusy(btn, false); }
 };
-document.getElementById("btn-login").onclick = async () => {
+document.getElementById("btn-login").onclick = async (ev) => {
+  const btn = ev.currentTarget;
+  setBusy(btn, true);
+  document.getElementById("auth-status").textContent = "Memproses masuk…";
   try {
     const u = document.getElementById("username").value, p = document.getElementById("password").value;
-    const d = await api("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: u, password: p }) });
-    token = d.token; username = d.username;
-    localStorage.setItem("kltp_token", token); localStorage.setItem("kltp_user", username);
-    startStream();
-    await refresh();
+    await doLogin(u, p);
   } catch (e) { document.getElementById("auth-status").textContent = "Gagal: " + e.message; }
+  finally { setBusy(btn, false); }
 };
 document.getElementById("btn-logout").onclick = () => {
   stopStream();
   token = ""; username = ""; localStorage.removeItem("kltp_token"); localStorage.removeItem("kltp_user"); showAuth();
 };
-document.getElementById("btn-device").onclick = async () => {
+document.getElementById("btn-device").onclick = async (ev) => {
+  const btn = ev.currentTarget;
+  setBusy(btn, true);
   try {
     const name = document.getElementById("device-name").value;
     const d = await api("/api/devices", { method: "POST", headers: authHeaders(), body: JSON.stringify({ name }) });
     document.getElementById("device-token").textContent = "Perangkat #" + d.id + " — token (simpan sekarang, hanya muncul sekali): " + d.device_token;
     await refresh();
   } catch (e) { document.getElementById("device-token").textContent = "Gagal: " + e.message; }
+  finally { setBusy(btn, false); }
 };
 document.getElementById("btn-refresh").onclick = () => refresh().catch(e => alert(e.message));
 document.getElementById("btn-loc").onclick = async () => {

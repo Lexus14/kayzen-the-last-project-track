@@ -33,7 +33,9 @@ Variabel lingkungan (lihat `.env.example`):
 ## Alur pakai
 
 1. Daftar akun di halaman web. Akun pertama yang terdaftar menjadi `admin`,
-   akun berikutnya menjadi `user` biasa.
+   akun berikutnya menjadi `user` biasa. Setelah daftar, kamu langsung
+   masuk otomatis — tombolnya menampilkan "Memproses…" selama request
+   berjalan, jadi tidak terlihat seperti tidak terjadi apa-apa.
 2. Masuk, lalu daftarkan perangkat. **Simpan token perangkat yang muncul
    sekali itu** — token tidak ditampilkan lagi.
 3. Perangkat mengirim lokasi dengan token itu:
