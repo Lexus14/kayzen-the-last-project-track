@@ -35,6 +35,15 @@ async function refresh() {
   const data = await api("/api/devices", { headers: authHeaders() });
   const tbody = document.getElementById("device-rows");
   tbody.innerHTML = "";
+  const sel = document.getElementById("route-device");
+  const keep = sel.value;
+  sel.innerHTML = '<option value="">Pilih perangkat…</option>';
+  data.devices.forEach(d => {
+    const o = document.createElement("option");
+    o.value = d.id; o.textContent = "#" + d.id + " " + d.name;
+    sel.appendChild(o);
+  });
+  sel.value = keep;
   markers.forEach(m => m.remove()); markers = [];
   let first = null;
   data.devices.forEach(d => {
@@ -88,6 +97,68 @@ document.getElementById("btn-loc").onclick = async () => {
     await refresh();
   } catch (e) { document.getElementById("loc-status").textContent = "Gagal: " + e.message; }
 };
+let routePoints = [], routeLine = null, routeStart = null, routeEnd = null, playMarker = null, playTimer = null;
+function haversineKm(a, b) {
+  const R = 6371, toRad = d => d * Math.PI / 180;
+  const dLat = toRad(b.latitude - a.latitude), dLon = toRad(b.longitude - a.longitude);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.latitude)) * Math.cos(toRad(b.latitude)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+function clearRoute() {
+  if (playTimer) clearInterval(playTimer);
+  playTimer = null;
+  [routeLine, routeStart, routeEnd, playMarker].forEach(x => { if (x) x.remove(); });
+  routeLine = routeStart = routeEnd = playMarker = null;
+  routePoints = [];
+  document.getElementById("route-slider").max = 0;
+  document.getElementById("route-info").textContent = "";
+  document.getElementById("route-point").textContent = "";
+}
+function showRoutePoint(i) {
+  if (!routePoints.length) return;
+  i = Math.max(0, Math.min(i, routePoints.length - 1));
+  const p = routePoints[i];
+  document.getElementById("route-slider").value = i;
+  document.getElementById("route-point").textContent = "Titik " + (i + 1) + " dari " + routePoints.length + ": " + p.latitude + ", " + p.longitude + " — " + p.recorded_at;
+  if (!playMarker) playMarker = L.circleMarker([p.latitude, p.longitude], { radius: 8, color: "#f59e0b" }).addTo(map);
+  else playMarker.setLatLng([p.latitude, p.longitude]);
+}
+document.getElementById("btn-route").onclick = async () => {
+  try {
+    const id = document.getElementById("route-device").value;
+    if (!id) throw new Error("pilih perangkat dulu");
+    const from = document.getElementById("route-from").value, to = document.getElementById("route-to").value;
+    let q = "/api/devices/" + id + "/locations?limit=500";
+    if (from) q += "&from=" + encodeURIComponent(from);
+    if (to) q += "&to=" + encodeURIComponent(to);
+    const data = await api(q, { headers: authHeaders() });
+    clearRoute();
+    routePoints = data.locations;
+    if (!routePoints.length) { document.getElementById("route-info").textContent = "Tidak ada lokasi pada rentang itu."; return; }
+    const pts = routePoints.map(p => [p.latitude, p.longitude]);
+    routeLine = L.polyline(pts, { color: "#2563eb" }).addTo(map);
+    routeStart = L.marker(pts[0]).addTo(map).bindPopup("Awal: " + routePoints[0].recorded_at);
+    routeEnd = L.marker(pts[pts.length - 1]).addTo(map).bindPopup("Akhir: " + routePoints[routePoints.length - 1].recorded_at);
+    let km = 0;
+    for (let i = 1; i < routePoints.length; i++) km += haversineKm(routePoints[i - 1], routePoints[i]);
+    document.getElementById("route-slider").max = routePoints.length - 1;
+    document.getElementById("route-info").textContent = routePoints.length + " titik, jarak sekitar " + km.toFixed(2) + " km, " + routePoints[0].recorded_at + " s.d. " + routePoints[routePoints.length - 1].recorded_at;
+    map.fitBounds(routeLine.getBounds());
+    showRoutePoint(0);
+  } catch (e) { document.getElementById("route-info").textContent = "Gagal: " + e.message; }
+};
+document.getElementById("btn-route-clear").onclick = clearRoute;
+document.getElementById("route-slider").oninput = (e) => showRoutePoint(parseInt(e.target.value, 10));
+document.getElementById("btn-play").onclick = () => {
+  if (!routePoints.length || playTimer) return;
+  let i = parseInt(document.getElementById("route-slider").value, 10) || 0;
+  playTimer = setInterval(() => {
+    if (i >= routePoints.length - 1) { clearInterval(playTimer); playTimer = null; return; }
+    showRoutePoint(++i);
+  }, 800);
+};
+document.getElementById("btn-pause").onclick = () => { if (playTimer) clearInterval(playTimer); playTimer = null; };
+
 map = L.map("map").setView([-2.99, 104.75], 5);
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map);
 showAuth();

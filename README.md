@@ -48,6 +48,10 @@ curl -X POST http://127.0.0.1:8000/api/devices/1/locations \
 4. Lihat perangkat dan peta di halaman web. Peta diperbarui secara live:
    server mendorong event SSE setiap ada lokasi baru, dan browser langsung
    memuat ulang daftar perangkat (bukan polling tiap 15 detik).
+5. Untuk melihat perjalanan: di bagian Riwayat & Rute, pilih perangkat dan
+   tanggal, klik Tampilkan rute. Rute digambar sebagai garis di peta,
+   lengkap dengan jarak total, lalu bisa digeser atau diputar ulang
+   titik demi titik.
 
 ## API
 
@@ -57,7 +61,9 @@ curl -X POST http://127.0.0.1:8000/api/devices/1/locations \
 - `GET /api/auth/me`
 - `POST /api/devices` — butuh sesi login, mengembalikan token perangkat sekali pakai
 - `GET /api/devices` — admin melihat semua perangkat, user hanya miliknya
-- `GET /api/devices/{id}/locations?limit=100`
+- `GET /api/devices/{id}/locations?limit=100&from=2026-10-26&to=2026-10-26`
+  — riwayat urut waktu menaik; `from`/`to` bisa tanggal (`YYYY-MM-DD`)
+  atau timestamp ISO penuh
 - `POST /api/devices/{id}/locations` — butuh `X-Device-Token` atau sesi pemilik/admin
 - `GET /api/devices/stream?token=<token_sesi>` — Server-Sent Events; server
   mengirim event `update` setiap ada lokasi baru (dan heartbeat tiap 15 detik)

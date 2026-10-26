@@ -80,6 +80,23 @@ def token_hash(token):
     return hashlib.sha256(token.encode()).hexdigest()
 
 
+def parse_range_bound(value, is_end=False):
+    """Accept a date (YYYY-MM-DD) or a full ISO timestamp.
+
+    A date-only `from` means the start of that day (UTC); a date-only `to`
+    means the end of that day, so filtering by one calendar day works.
+    """
+    if not value:
+        return None
+    text = str(value).strip()
+    if len(text) == 10 and text[4] == "-" and text[7] == "-":
+        day = datetime.fromisoformat(text).replace(tzinfo=timezone.utc)
+        if is_end:
+            day = day + timedelta(days=1)
+        return day.isoformat().replace("+00:00", "Z")
+    return parse_iso(text)
+
+
 def connect():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
@@ -310,18 +327,32 @@ class Handler(BaseHTTPRequestHandler):
                 device_id = int(path.split("/")[3])
             except (IndexError, ValueError):
                 return self.send_json(400, {"error": "invalid device id"})
-            limit = int(parse_qs(parsed.query).get("limit", ["100"])[0])
+            qs = parse_qs(parsed.query)
+            limit = int(qs.get("limit", ["100"])[0])
             limit = max(1, min(limit, 500))
+            try:
+                date_from = parse_range_bound(qs.get("from", [""])[0], is_end=False)
+                date_to = parse_range_bound(qs.get("to", [""])[0], is_end=True)
+            except ValueError as exc:
+                return self.send_json(400, {"error": str(exc)})
             with connect() as conn:
                 dev = conn.execute("SELECT * FROM devices WHERE id = ?", (device_id,)).fetchone()
                 if not dev:
                     return self.send_json(404, {"error": "device not found"})
                 if user["role"] != "admin" and dev["user_id"] != user["id"]:
                     return self.send_json(403, {"error": "forbidden"})
-                rows = conn.execute(
-                    "SELECT * FROM locations WHERE device_id = ? ORDER BY recorded_at DESC, id DESC LIMIT ?",
-                    (device_id, limit),
-                ).fetchall()
+                # Oldest first: a route reads naturally in time order.
+                sql = "SELECT * FROM locations WHERE device_id = ?"
+                params = [device_id]
+                if date_from:
+                    sql += " AND recorded_at >= ?"
+                    params.append(date_from)
+                if date_to:
+                    sql += " AND recorded_at < ?"
+                    params.append(date_to)
+                sql += " ORDER BY recorded_at ASC, id ASC LIMIT ?"
+                params.append(limit)
+                rows = conn.execute(sql, params).fetchall()
                 return self.send_json(200, {"locations": [dict(r) for r in rows]})
         return self.send_json(404, {"error": "not found"})
 

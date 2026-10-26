@@ -40,6 +40,21 @@
   </section>
 
   <section>
+    <h2>Riwayat &amp; Rute</h2>
+    <p class="hint">Pilih perangkat dan tanggal, lalu tampilkan rutenya di peta. Geser atau putar ulang untuk mengikuti perjalanan.</p>
+    <select id="route-device"><option value="">Pilih perangkat…</option></select>
+    <input id="route-from" type="date">
+    <input id="route-to" type="date">
+    <button id="btn-route">Tampilkan rute</button>
+    <button id="btn-route-clear">Hapus rute</button>
+    <p id="route-info"></p>
+    <input id="route-slider" type="range" min="0" max="0" value="0" style="width:100%">
+    <button id="btn-play">Putar</button>
+    <button id="btn-pause">Jeda</button>
+    <p id="route-point"></p>
+  </section>
+
+  <section>
     <h2>Kirim lokasi (uji)</h2>
     <p class="hint">Gunakan token perangkat yang muncul sekali saat pendaftaran. Di penggunaan nyata, aplikasi perangkat mengirim ini otomatis setelah izin diberikan.</p>
     <input id="loc-device" type="number" placeholder="ID perangkat">
