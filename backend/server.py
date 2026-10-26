@@ -147,6 +147,16 @@ def init_db():
                 detail TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS invites (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                code_hash TEXT UNIQUE NOT NULL,
+                created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                device_name TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                used_at TEXT,
+                device_id INTEGER REFERENCES devices(id) ON DELETE SET NULL,
+                created_at TEXT NOT NULL
+            );
             """
         )
 
@@ -205,6 +215,29 @@ def latest_location(conn, device_id):
         (device_id,),
     ).fetchone()
     return dict(row) if row else None
+
+
+def invite_status(invite):
+    """Single-use invite state: used beats expired, so a redeemed link
+    never looks merely expired, and an expired link can never be redeemed."""
+    if invite["used_at"]:
+        return "used"
+    if invite["expires_at"] < now_iso():
+        return "expired"
+    return "active"
+
+
+def invite_view(invite):
+    return {
+        "id": invite["id"],
+        "device_name": invite["device_name"],
+        "inviter": invite.get("inviter"),
+        "status": invite_status(invite),
+        "expires_at": invite["expires_at"],
+        "used_at": invite["used_at"],
+        "device_id": invite["device_id"],
+        "created_at": invite["created_at"],
+    }
 
 
 def device_view(conn, device):
@@ -268,8 +301,12 @@ class Handler(BaseHTTPRequestHandler):
         path = parsed.path
         if path == "/":
             return self.send_static("index.html")
-        if path in ("/app.js", "/style.css"):
+        if path in ("/app.js", "/style.css", "/join.js"):
             return self.send_static(path)
+        if path == "/join" or path == "/join.html" or path.startswith("/join/"):
+            # /join/<code> is a page, not an API route: the join script
+            # reads the code from the URL path itself.
+            return self.send_static("join.html")
         if path == "/api/health":
             return self.send_json(200, {"status": "ok", "time": now_iso()})
         if path == "/api/devices/stream":
@@ -309,6 +346,32 @@ class Handler(BaseHTTPRequestHandler):
             if not user:
                 return self.send_json(401, {"error": "unauthorized"})
             return self.send_json(200, {"id": user["id"], "username": user["username"], "role": user["role"]})
+        if path == "/api/invites":
+            user = auth_user(self.headers)
+            if not user:
+                return self.send_json(401, {"error": "unauthorized"})
+            with connect() as conn:
+                sql = ("SELECT i.*, u.username AS inviter FROM invites i "
+                       "JOIN users u ON u.id = i.created_by ")
+                if user["role"] == "admin":
+                    rows = conn.execute(sql + "ORDER BY i.id DESC").fetchall()
+                else:
+                    rows = conn.execute(sql + "WHERE i.created_by = ? ORDER BY i.id DESC", (user["id"],)).fetchall()
+                return self.send_json(200, {"invites": [invite_view(dict(r)) for r in rows]})
+        if path.startswith("/api/invites/") and path.endswith("/info"):
+            try:
+                code = path.split("/")[3]
+            except IndexError:
+                return self.send_json(400, {"error": "invalid invite code"})
+            with connect() as conn:
+                row = conn.execute(
+                    "SELECT i.*, u.username AS inviter FROM invites i "
+                    "JOIN users u ON u.id = i.created_by WHERE i.code_hash = ?",
+                    (token_hash(code),),
+                ).fetchone()
+                if not row:
+                    return self.send_json(404, {"error": "invite not found"})
+                return self.send_json(200, invite_view(dict(row)))
         if path == "/api/devices":
             user = auth_user(self.headers)
             if not user:
@@ -400,6 +463,65 @@ class Handler(BaseHTTPRequestHandler):
                 audit(conn, row["id"], "login")
                 conn.commit()
                 return self.send_json(200, {"token": token, "username": row["username"], "role": row["role"]})
+
+        if path == "/api/invites":
+            user = auth_user(self.headers)
+            if not user:
+                return self.send_json(401, {"error": "unauthorized"})
+            name = str(body.get("device_name", "")).strip() or "Perangkat undangan"
+            code = secrets.token_urlsafe(32)
+            expires = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat().replace("+00:00", "Z")
+            with connect() as conn:
+                cur = conn.execute(
+                    "INSERT INTO invites (code_hash, created_by, device_name, expires_at, created_at) VALUES (?, ?, ?, ?, ?)",
+                    (token_hash(code), user["id"], name, expires, now_iso()),
+                )
+                audit(conn, user["id"], "invite_create", f"invite_id={cur.lastrowid}")
+                conn.commit()
+                return self.send_json(201, {
+                    "id": cur.lastrowid, "device_name": name,
+                    "code": code, "join_path": "/join/" + code,
+                    "expires_at": expires,
+                    "note": "Link ini sekali pakai dan berlaku 24 jam. Kode hanya ditampilkan sekali.",
+                })
+
+        if path.startswith("/api/invites/") and path.endswith("/redeem"):
+            try:
+                code = path.split("/")[3]
+            except IndexError:
+                return self.send_json(400, {"error": "invalid invite code"})
+            with connect() as conn:
+                row = conn.execute("SELECT * FROM invites WHERE code_hash = ?", (token_hash(code),)).fetchone()
+                if not row:
+                    return self.send_json(404, {"error": "invite not found"})
+                invite = dict(row)
+                if invite["used_at"]:
+                    return self.send_json(410, {"error": "invite already used"})
+                if invite["expires_at"] < now_iso():
+                    return self.send_json(410, {"error": "invite expired"})
+                name = str(body.get("device_name", "")).strip() or invite["device_name"]
+                device_token = secrets.token_urlsafe(32)
+                salt, digest = hash_secret(device_token)
+                cur = conn.execute(
+                    "INSERT INTO devices (user_id, name, token_salt, token_hash, created_at) VALUES (?, ?, ?, ?, ?)",
+                    (invite["created_by"], name, salt, digest, now_iso()),
+                )
+                # Claim the invite only if it is still unused, so two
+                # simultaneous redeems cannot both succeed.
+                claimed = conn.execute(
+                    "UPDATE invites SET used_at = ?, device_id = ? WHERE id = ? AND used_at IS NULL",
+                    (now_iso(), cur.lastrowid, invite["id"]),
+                )
+                if claimed.rowcount != 1:
+                    conn.rollback()
+                    return self.send_json(410, {"error": "invite already used"})
+                audit(conn, invite["created_by"], "invite_redeem", f"invite_id={invite['id']} device_id={cur.lastrowid}")
+                conn.commit()
+                return self.send_json(201, {
+                    "device_id": cur.lastrowid, "device_name": name,
+                    "device_token": device_token,
+                    "note": "Token perangkat ini disimpan otomatis di browser ini. Jangan bagikan link undangan yang sudah dipakai.",
+                })
 
         if path == "/api/devices":
             user = auth_user(self.headers)

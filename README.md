@@ -90,6 +90,43 @@ Perilaku penting:
 - Token tidak pernah dicetak ke log.
 - Tekan Ctrl+C untuk berhenti; antrean offline tetap tersimpan.
 
+## Link undangan sekali pakai (tanpa daftar akun / salin token)
+
+Cara paling tidak ribet untuk perangkat keluarga:
+
+1. Login sebagai admin (atau user), lalu di bagian “Link undangan
+   (sekali pakai)” isi nama perangkat, mis. `HP Ibu`, dan tekan
+   “Buat link undangan”. Link yang muncul hanya ditampilkan sekali —
+   salin dan kirim secara pribadi ke pemilik perangkat itu.
+2. Pemilik perangkat membuka link itu di browser HP-nya (harus lewat
+   HTTPS, mis. alamat tunnel permanen, atau localhost untuk pengujian).
+   Halaman join menjelaskan siapa yang akan melihat lokasi, lalu ia
+   menekan “Saya Izinkan”.
+3. Server otomatis membuat perangkat milik pembuat undangan dan
+   menyimpan token perangkat itu di browser tersebut — tidak ada
+   pendaftaran akun, tidak ada penyalinan token, tidak ada Termux.
+4. Browser meminta izin lokasi secara terpisah. Lokasi dikirim kira-kira
+   tiap 30 detik **selama halaman join tetap terbuka**. Menutup halaman
+   atau menekan “Berhenti berbagi” menghentikan pengiriman.
+
+Aturan dan batasnya, sengaja dibuat ketat:
+- Satu link hanya bisa dipakai **sekali**, dan berlaku **24 jam**.
+- Kode undangan disimpan sebagai hash SHA-256 di server, bukan plaintext,
+  dan tidak pernah ditampilkan lagi di daftar undangan.
+- Link yang sudah dipakai atau kadaluarsa ditolak dengan 410.
+- Geolocation browser tidak bisa berjalan di latar dari tab yang
+  tertutup, jadi link undangan **bukan** pelacakan 24 jam nonstop.
+  Untuk pengiriman latar yang terus berjalan, pakai pengirim Termux di
+  atas atau location sharing bawaan (Google Maps / Find My).
+- Jangan posting link undangan secara publik: siapa pun yang memegangnya
+  sebelum dipakai bisa mengklaimnya.
+
+API undangan:
+- `POST /api/invites` — butuh sesi login, mengembalikan kode + `join_path` sekali pakai
+- `GET /api/invites` — daftar undangan milikmu (admin: semua), tanpa kode
+- `GET /api/invites/{kode}/info` — publik, hanya nama perangkat, pengundang, dan status
+- `POST /api/invites/{kode}/redeem` — publik, sekali pakai, membuat perangkat dan mengembalikan token perangkat
+
 ## Tunnel permanen (Named Tunnel, Cloudflare)
 
 Quick Tunnel (`cloudflared tunnel --url http://127.0.0.1:8000`) itu
@@ -143,6 +180,9 @@ sama — hostname-nya tetap, tidak berubah seperti Quick Tunnel.
 - `POST /api/devices/{id}/locations` — butuh `X-Device-Token` atau sesi pemilik/admin
 - `GET /api/devices/stream?token=<token_sesi>` — Server-Sent Events; server
   mengirim event `update` setiap ada lokasi baru (dan heartbeat tiap 15 detik)
+- Undangan sekali pakai: `POST /api/invites`, `GET /api/invites`,
+  `GET /api/invites/{kode}/info`, `POST /api/invites/{kode}/redeem`
+  (lihat bagian Link undangan di atas)
 
 ## Struktur
 

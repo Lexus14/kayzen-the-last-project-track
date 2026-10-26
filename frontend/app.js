@@ -122,6 +122,31 @@ document.getElementById("btn-device").onclick = async (ev) => {
   finally { setBusy(btn, false); }
 };
 document.getElementById("btn-refresh").onclick = () => refresh().catch(e => alert(e.message));
+document.getElementById("btn-invite").onclick = async (ev) => {
+  const btn = ev.currentTarget;
+  setBusy(btn, true);
+  try {
+    const name = document.getElementById("invite-name").value;
+    const d = await api("/api/invites", { method: "POST", headers: authHeaders(), body: JSON.stringify({ device_name: name }) });
+    const link = window.location.origin + d.join_path;
+    const el = document.getElementById("invite-link");
+    el.innerHTML = "";
+    const a = document.createElement("a");
+    a.href = link; a.textContent = link;
+    el.appendChild(a);
+    el.appendChild(document.createTextNode(" — berlaku sampai " + d.expires_at + ", sekali pakai. Kirim secara pribadi."));
+    await refresh();
+  } catch (e) { document.getElementById("invite-link").textContent = "Gagal: " + e.message; }
+  finally { setBusy(btn, false); }
+};
+document.getElementById("btn-invites").onclick = async () => {
+  try {
+    const data = await api("/api/invites", { headers: authHeaders() });
+    document.getElementById("invite-list").textContent = data.invites.length
+      ? data.invites.map(i => "#" + i.id + " " + i.device_name + " — " + i.status + ", kadaluarsa " + i.expires_at + (i.device_id ? ", perangkat #" + i.device_id : "")).join(" | ")
+      : "Belum ada undangan.";
+  } catch (e) { document.getElementById("invite-list").textContent = "Gagal: " + e.message; }
+};
 document.getElementById("btn-loc").onclick = async () => {
   try {
     const id = document.getElementById("loc-device").value;

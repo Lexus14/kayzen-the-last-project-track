@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Undangan Pelacakan — Kayzen-the-last-project-track</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main>
+  <h1>Undangan Pelacakan</h1>
+  <p id="invite-info">Memeriksa undangan…</p>
+
+  <section id="consent" style="display:none">
+    <h2>Sebelum kamu mengizinkan</h2>
+    <p>
+      Dengan menekan “Saya Izinkan”, perangkat ini akan mengirim lokasi GPS-nya
+      ke server pelacak, dan pemilik undangan dapat melihat lokasi serta
+      riwayat perangkat ini di peta.
+    </p>
+    <ul>
+      <li>Lokasi dikirim selama halaman ini tetap terbuka, kira-kira tiap 30 detik.</li>
+      <li>Browser akan meminta izin lokasi secara terpisah — lokasi hanya dikirim kalau kamu mengizinkannya di sana juga.</li>
+      <li>Untuk berhenti, tekan “Berhenti berbagi” di bawah atau tutup halaman ini.</li>
+    </ul>
+    <p>
+      Link ini sekali pakai dan berlaku 24 jam. Jangan teruskan link ini ke
+      orang lain: siapa pun yang memegangnya sebelum dipakai bisa mengklaimnya.
+    </p>
+    <label>Nama perangkat (boleh diubah): <input id="device-name" placeholder="Perangkat undangan"></label>
+    <button id="btn-allow">Saya Izinkan</button>
+  </section>
+
+  <section id="sharing" style="display:none">
+    <h2>Berbagi lokasi aktif</h2>
+    <p id="share-status"></p>
+    <button id="btn-stop">Berhenti berbagi</button>
+    <p class="hint">Menutup halaman ini juga menghentikan pengiriman lokasi. Perangkat tetap tercatat di server sampai pemiliknya menghapusnya.</p>
+  </section>
+
+  <p id="join-error"></p>
+</main>
+<script src="/join.js"></script>
+</body>
+</html>
