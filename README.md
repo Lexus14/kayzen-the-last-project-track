@@ -30,6 +30,24 @@ Variabel lingkungan (lihat `.env.example`):
 | `ONLINE_WINDOW_SECONDS` | `300` | Perangkat dianggap online jika lokasi terakhir dalam 5 menit |
 | `SESSION_HOURS` | `24` | Masa berlaku sesi login |
 
+## Update dan jalankan ulang (Termux)
+
+Kalau server lama sudah ditutup, atau setelah ada commit baru di GitHub,
+jalankan dari folder project yang benar (bukan dari home `~` saja):
+
+```bash
+cd ~/kayzen-the-last-project-track
+git pull
+python3 backend/server.py
+```
+
+Catatan:
+- Kalau server lama masih jalan di sesi lain, hentikan dulu (Ctrl+C)
+  sebelum menjalankan perintah di atas, supaya port 8000 tidak bentrok
+  (`Address already in use`).
+- Data akun dan perangkat tidak hilang saat restart, karena tersimpan di
+  `data/track.db` di folder project yang sama.
+
 ## Alur pakai
 
 1. Daftar akun di halaman web. Akun pertama yang terdaftar menjadi `admin`,
