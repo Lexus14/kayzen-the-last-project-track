@@ -45,7 +45,9 @@ curl -X POST http://127.0.0.1:8000/api/devices/1/locations \
   -d '{"latitude": -3.123, "longitude": 102.123}'
 ```
 
-4. Lihat perangkat dan peta di halaman web. Peta memuat ulang tiap 15 detik.
+4. Lihat perangkat dan peta di halaman web. Peta diperbarui secara live:
+   server mendorong event SSE setiap ada lokasi baru, dan browser langsung
+   memuat ulang daftar perangkat (bukan polling tiap 15 detik).
 
 ## API
 
@@ -57,6 +59,8 @@ curl -X POST http://127.0.0.1:8000/api/devices/1/locations \
 - `GET /api/devices` — admin melihat semua perangkat, user hanya miliknya
 - `GET /api/devices/{id}/locations?limit=100`
 - `POST /api/devices/{id}/locations` — butuh `X-Device-Token` atau sesi pemilik/admin
+- `GET /api/devices/stream?token=<token_sesi>` — Server-Sent Events; server
+  mengirim event `update` setiap ada lokasi baru (dan heartbeat tiap 15 detik)
 
 ## Struktur
 
@@ -77,6 +81,6 @@ tests/test_api.py   Tes end-to-end terhadap server yang sedang berjalan
 
 ## Rencana berikutnya
 
-- WebSocket/SSE untuk update peta benar-benar real-time (saat ini polling 15 detik).
 - PostgreSQL sebagai opsi database selain SQLite.
+- WebSocket sebagai alternatif SSE bila dibutuhkan komunikasi dua arah.
 - Aplikasi / halaman kirim lokasi di perangkat, bukan hanya form uji.

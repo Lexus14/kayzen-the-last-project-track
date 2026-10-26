@@ -12,9 +12,11 @@ phone number or national ID, and it never infers a location from those.
 import hashlib
 import json
 import os
+import queue
 import secrets
 import sqlite3
 import sys
+import threading
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
@@ -26,6 +28,22 @@ PORT = int(os.environ.get("PORT", "8000"))
 DB_PATH = os.environ.get("DATABASE_PATH", os.path.join(BASE_DIR, "data", "track.db"))
 ONLINE_WINDOW_SECONDS = int(os.environ.get("ONLINE_WINDOW_SECONDS", "300"))
 SESSION_HOURS = int(os.environ.get("SESSION_HOURS", "24"))
+
+# Live-update subscribers for Server-Sent Events (SSE). Each connected
+# browser gets a queue; ingesting a location wakes every queue, so the
+# browser refetches the device list immediately instead of polling.
+# SSE is used instead of WebSockets here to stay stdlib-only.
+_SUBSCRIBERS = set()
+_SUB_LOCK = threading.Lock()
+
+
+def notify_subscribers():
+    with _SUB_LOCK:
+        for q in list(_SUBSCRIBERS):
+            try:
+                q.put_nowait("update")
+            except queue.Full:
+                pass
 
 
 def now_iso():
@@ -123,11 +141,9 @@ def audit(conn, user_id, action, detail=""):
     )
 
 
-def auth_user(headers):
-    auth = headers.get("Authorization", "")
-    if not auth.startswith("Bearer "):
+def auth_user_by_token(token):
+    if not token:
         return None
-    token = auth[7:].strip()
     with connect() as conn:
         row = conn.execute(
             "SELECT s.expires_at, u.* FROM sessions s JOIN users u ON u.id = s.user_id "
@@ -139,6 +155,15 @@ def auth_user(headers):
         if row["expires_at"] < now_iso():
             return None
         return dict(row)
+
+
+def auth_user(headers):
+    """Session user from a Bearer header (EventSource can't send headers,
+    so the SSE endpoint instead passes the same token as ?token=)."""
+    auth = headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return None
+    return auth_user_by_token(auth[7:].strip())
 
 
 def device_by_token(headers):
@@ -230,6 +255,38 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_static(path)
         if path == "/api/health":
             return self.send_json(200, {"status": "ok", "time": now_iso()})
+        if path == "/api/devices/stream":
+            # EventSource cannot send an Authorization header, so the
+            # session token is passed as ?token= (same token as login).
+            # The token is checked here and never written to audit logs.
+            user = auth_user_by_token(parse_qs(parsed.query).get("token", [""])[0])
+            if not user:
+                return self.send_json(401, {"error": "unauthorized"})
+            q = queue.Queue(maxsize=10)
+            with _SUB_LOCK:
+                _SUBSCRIBERS.add(q)
+            try:
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Cache-Control", "no-cache")
+                self.send_header("Connection", "keep-alive")
+                self.end_headers()
+                self.wfile.write(f"data: {json.dumps({'type': 'connected', 'time': now_iso()})}\n\n".encode())
+                self.wfile.flush()
+                while True:
+                    try:
+                        q.get(timeout=15)
+                        payload = {"type": "update", "time": now_iso()}
+                    except queue.Empty:
+                        payload = {"type": "heartbeat", "time": now_iso()}
+                    self.wfile.write(f"data: {json.dumps(payload)}\n\n".encode())
+                    self.wfile.flush()
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            finally:
+                with _SUB_LOCK:
+                    _SUBSCRIBERS.discard(q)
+            return None
         if path == "/api/auth/me":
             user = auth_user(self.headers)
             if not user:
@@ -375,6 +432,7 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 audit(conn, actor, "location_ingest", f"device_id={device_id}")
                 conn.commit()
+                notify_subscribers()
                 return self.send_json(201, {"id": cur.lastrowid, "device_id": device_id,
                                             "latitude": lat, "longitude": lon,
                                             "accuracy": accuracy, "recorded_at": recorded})

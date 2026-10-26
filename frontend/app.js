@@ -1,6 +1,21 @@
 let map, markers = [];
+let eventSource = null;
 let token = localStorage.getItem("kltp_token") || "";
 let username = localStorage.getItem("kltp_user") || "";
+
+function startStream() {
+  if (eventSource) eventSource.close();
+  if (!token) return;
+  // Live updates: the server pushes an event on every new location,
+  // and the browser refetches the device list right then.
+  eventSource = new EventSource("/api/devices/stream?token=" + encodeURIComponent(token));
+  eventSource.onmessage = () => refresh().catch(() => {});
+  eventSource.onerror = () => { /* browser auto-reconnects */ };
+}
+function stopStream() {
+  if (eventSource) eventSource.close();
+  eventSource = null;
+}
 
 function authHeaders() {
   return token ? { "Authorization": "Bearer " + token, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
@@ -48,10 +63,12 @@ document.getElementById("btn-login").onclick = async () => {
     const d = await api("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: u, password: p }) });
     token = d.token; username = d.username;
     localStorage.setItem("kltp_token", token); localStorage.setItem("kltp_user", username);
+    startStream();
     await refresh();
   } catch (e) { document.getElementById("auth-status").textContent = "Gagal: " + e.message; }
 };
 document.getElementById("btn-logout").onclick = () => {
+  stopStream();
   token = ""; username = ""; localStorage.removeItem("kltp_token"); localStorage.removeItem("kltp_user"); showAuth();
 };
 document.getElementById("btn-device").onclick = async () => {
@@ -74,5 +91,4 @@ document.getElementById("btn-loc").onclick = async () => {
 map = L.map("map").setView([-2.99, 104.75], 5);
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map);
 showAuth();
-if (token) refresh().catch(() => {});
-setInterval(() => { if (token) refresh().catch(() => {}); }, 15000);
+if (token) { startStream(); refresh().catch(() => {}); }
