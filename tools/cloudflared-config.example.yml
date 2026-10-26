@@ -1,0 +1,15 @@
+# Template tunnel permanen (Named Tunnel) untuk Kayzen-the-last-project-track.
+# Salin file ini ke ~/.cloudflared/config.yml di Termux, lalu ganti placeholder.
+# JANGAN commit config.yml asli dan JANGAN bagikan file credentials JSON
+# (~/.cloudflared/<TUNNEL-UUID>.json) — file itu adalah identitas tunnel.
+# Prasyarat: sebuah domain yang sudah ditambahkan ke akun Cloudflare dan
+# DNS-nya dikelola Cloudflare. Tanpa domain, langkah `route dns` tidak bisa
+# membuat hostname publik; Quick Tunnel tetap jadi alternatif uji coba.
+tunnel: TUNNEL-UUID-KAMU
+credentials-file: /data/data/com.termux/files/home/.cloudflared/TUNNEL-UUID-KAMU.json
+ingress:
+  # Ganti dengan hostname publikmu, mis. track.domain-kamu.com
+  - hostname: track.domain-kamu.com
+    service: http://localhost:8000
+  # Catch-all wajib: hostname lain yang tidak cocok dapat 404, bukan server.
+  - service: http_status:404

@@ -3,6 +3,8 @@ __pycache__/
 .env
 .kltp-sender.env
 tools/sender-queue.jsonl
+.cloudflared/
+tools/cloudflared-config.yml
 data/*.db
 data/*.db-journal
 .venv/

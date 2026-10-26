@@ -90,6 +90,45 @@ Perilaku penting:
 - Token tidak pernah dicetak ke log.
 - Tekan Ctrl+C untuk berhenti; antrean offline tetap tersimpan.
 
+## Tunnel permanen (Named Tunnel, Cloudflare)
+
+Quick Tunnel (`cloudflared tunnel --url http://127.0.0.1:8000`) itu
+sementara: URL-nya berubah tiap restart dan tidak ada garansi uptime.
+Tunnel permanen memakai nama tetap dan hostname tetap, tapi butuh satu
+prasyarat: **sebuah domain yang sudah ditambahkan ke akun Cloudflare dan
+DNS-nya dikelola Cloudflare**. Tanpa domain, langkah `route dns` tidak
+bisa membuat hostname publik.
+
+Template konfigurasinya ada di `tools/cloudflared-config.example.yml`.
+Langkahnya, dengan server tetap jalan di sesi lain:
+
+```bash
+# 1. Hentikan Quick Tunnel dulu (Ctrl+C di sesinya) supaya tidak bingung.
+# 2. Login cloudflared (membuka browser untuk otorisasi akun):
+cloudflared tunnel login
+#    File cert.pem tersimpan di ~/.cloudflared/ — jangan dibagikan.
+
+# 3. Buat tunnel bernama, mis. kayzen-track:
+cloudflared tunnel create kayzen-track
+#    Catat Tunnel UUID yang muncul; file credentials JSON-nya ada di
+#    ~/.cloudflared/<TUNNEL-UUID>.json — jangan dibagikan.
+
+# 4. Salin template dan isi UUID + hostname:
+cp tools/cloudflared-config.example.yml ~/.cloudflared/config.yml
+nano ~/.cloudflared/config.yml
+
+# 5. Buat DNS-nya (membuat CNAME ke <UUID>.cfargotunnel.com):
+cloudflared tunnel route dns kayzen-track track.domain-kamu.com
+
+# 6. Jalankan tunnel permanen (biarkan sesi ini jalan):
+cloudflared tunnel run kayzen-track
+```
+
+Buka `https://track.domain-kamu.com` di browser, lalu login lagi dengan
+akun yang sama (token login localhost / Quick Tunnel tidak terbawa ke
+hostname baru). Setiap restart, jalankan lagi langkah 6 dengan nama yang
+sama — hostname-nya tetap, tidak berubah seperti Quick Tunnel.
+
 ## API
 
 - `GET /api/health`
